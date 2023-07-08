@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Map</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
+    <style>
+        #map {
+            position: relative;
+            z-index: 0;
+            height: 800px; /* Sesuaikan tinggi peta sesuai kebutuhan */
+        }
+        #sidebar {
+            position: absolute;
+            top: 0;
+            right: -300px; /* Sembunyikan sidebar saat awal */
+            width: 300px;
+            height: 100vh;
+            background-color: #f8f9fa;
+            padding: 20px;
+            transition: right 0.3s ease;
+            z-index: 1;
+        }
+    
+        #sidebar.open {
+            right: 0;
+        }
+    
+        .sidebar-toggle {
+            position: absolute;
+            top: 10px;
+            right: -30px;
+            padding: 5px;
+            background-color: #f8f9fa;
+            border-radius: 50%;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
+        }
+    
+        .sidebar-toggle i {
+            color: #000;
+        }
+    
+        .sidebar-toggle.open {
+            transform: translateX(-30px);
+        }
+        @media (min-width: 769px) {
+            #sidebar {
+                right: 2%; /* Tampilkan sidebar pada tampilan desktop */
+            }
+            #sidebar.open {
+                right: 23%;
+            }
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.css" />
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <a class="navbar-brand" href="#">MyApp</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav">
+                <li class="nav-item active">
+                    <a class="nav-link" href="{% url 'home' %}">Home</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'map' %}">Map</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    <div id="sidebar">
+        <button class="btn btn-primary btn-sm mb-3 sidebar-toggle" onclick="toggleSidebar()"><i class="fas fa-angle-left"></i></button>
+        <h4>Tempat Bengkel Terdekat</h4>
+        <div class="form-group">
+          <label for="userAddress">Alamat User:</label>
+          <div class="input-group">
+            <input type="text" class="form-control" id="userAddress" placeholder="Masukkan alamat">
+            <div class="input-group-append">
+              <button class="btn btn-primary" onclick="searchWorkshop()">Cari</button>
+            </div>
+          </div>
+        </div>
+      
+        <div class="card" id="workshop1Card">
+          <div class="card-body">
+            <h5 class="card-title">Bengkel 1</h5>
+            <p class="card-text">Alamat Bengkel 1</p>
+            <a href="#" class="btn btn-primary" onclick="showMarker(workshopLocation1)">Lihat di Maps</a>
+          </div>
+        </div>
+        <div class="card" id="workshop2Card">
+          <div class="card-body">
+            <h5 class="card-title">Bengkel 2</h5>
+            <p class="card-text">Alamat Bengkel 2</p>
+            <a href="#" class="btn btn-primary" onclick="showMarker(workshopLocation2)">Lihat di Maps</a>
+          </div>
+        </div>
+      </div>
+      
+        
+        <div id="routeSidebar"></div>
+    </div>
+        
+    
+    <div id="map"></div>
+    
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/2.9.2/umd/popper.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.js"></script>
+    <script>
+        var map = L.map('map').setView([-6.4025, 106.7942], 13); // Pusatkan peta pada Depok dengan level zoom 13
+
+        // Koordinat Bengkel 1 (Kelapa Dua Raya)
+        var workshopLocation1 = L.marker([-6.358959, 106.843154]).bindPopup('Bengkel 1');
+
+        // Koordinat Bengkel 2 (Tugu Depok)
+        var workshopLocation2 = L.marker([-6.361256, 106.849303]).bindPopup('Bengkel 2');
+
+        var userLocationMarker; // Variabel untuk menyimpan marker lokasi pengguna
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        workshopLocation1.addTo(map); // Tambahkan marker Bengkel 1 ke peta
+        workshopLocation2.addTo(map); // Tambahkan marker Bengkel 2 ke peta
+
+        function showMarker(marker) {
+            map.setView(marker.getLatLng(), 15); // Fokuskan peta pada marker yang dipilih dengan level zoom 15
+            marker.openPopup(); // Buka popup pada marker
+
+            var cardContent = '<h5 class="card-title">' + marker.getPopup().getContent() + '</h5>';
+            cardContent += '<button class="btn btn-primary" onclick="showRoute(' + marker.getLatLng().lat + ', ' + marker.getLatLng().lng + ')">Tunjukkan Rute</button>';
+
+            var popupCard = L.popup()
+                .setLatLng(marker.getLatLng())
+                .setContent(cardContent)
+                .openOn(map);
+        }
+
+        function searchWorkshop() {
+            var userAddress = document.getElementById('userAddress').value;
+
+            // Titik koordinat untuk alamat "Kelapa Dua Raya"
+            var kelapaDuaRayaLatLng = L.latLng(-6.363790, 106.843105);
+
+            // Titik koordinat untuk alamat "Tugu Depok"
+            var tuguDepokLatLng= L.latLng(-6.362173, 106.850266);
+
+            // Cocokkan alamat yang dimasukkan dengan opsi alamat yang dapat diakses
+            if (userAddress.toLowerCase().includes('kelapa dua raya')) {
+                showUserLocation(kelapaDuaRayaLatLng);
+            } else if (userAddress.toLowerCase().includes('tugu')) {
+                showUserLocation(tuguDepokLatLng);
+            } else {
+                alert("Alamat tidak valid atau tidak ada bengkel terdekat.");
+            }
+        }
+
+        function showUserLocation(userLatLng) {
+            if (userLocationMarker) {
+                userLocationMarker.setLatLng(userLatLng); // Perbarui posisi marker "Your Location" jika sudah ada
+                userLocationMarker.openPopup();
+            } else {
+                userLocationMarker = L.marker(userLatLng).bindPopup('Alamat User').addTo(map);
+                userLocationMarker.openPopup();
+            }
+
+            map.setView(userLatLng, 15); // Fokuskan peta pada alamat pengguna
+            workshopLocation1.openPopup(); // Buka popup Bengkel 1
+            workshopLocation2.closePopup(); // Tutup popup Bengkel 2
+            workshopLocation1.remove();
+
+            // Menampilkan rute dari Bengkel 2 ke alamat user
+            showRoute(userLatLng.lat, userLatLng.lng);
+        }
+
+        function showRoute(lat, lng) {
+            var userLatLng = userLocationMarker.getLatLng();
+            var workshopLatLng = L.latLng(lat, lng);
+
+            L.Routing.control({
+                waypoints: [
+                    L.latLng(userLatLng.lat, userLatLng.lng),
+                    L.latLng(workshopLatLng.lat, workshopLatLng.lng)
+                ],
+                lineOptions: {
+                    styles: [{ color: '#3388ff', weight: 6 }]
+                },
+                router: new L.Routing.OSRMv1({
+                    serviceUrl: 'https://routing.openstreetmap.de/routed-car/route/v1'
+                })
+            }).addTo(map);
+
+            // Menampilkan sidebar saat menampilkan rute
+            var sidebar = document.getElementById('sidebar');
+            sidebar.classList.add('open');
+        }
+
+        function toggleSidebar() {
+            var sidebar = document.getElementById('sidebar');
+            var sidebarToggle = document.querySelector('.sidebar-toggle');
+            
+            sidebar.classList.toggle('open');
+            sidebarToggle.classList.toggle('open');
+        }
+
+    </script>
+</body>
+</html>
